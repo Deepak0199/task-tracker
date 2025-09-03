@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 // Real team members data with provided credentials
 const TEAM_MEMBERS = [
   { 
-    id: 1, 
+    id: 'deepak_admin', 
     name: 'Deepak Kumar Singh', 
     email: 'deepakcollab1999@gmail.com', 
     avatar: '👨‍💼', 
@@ -11,7 +11,7 @@ const TEAM_MEMBERS = [
     role: 'admin'
   },
   { 
-    id: 2, 
+    id: 'yashwant_user', 
     name: 'Yashwant Kumar Singh', 
     email: 'yashwantcollab@gmail.com', 
     avatar: '👨‍💻', 
@@ -19,7 +19,7 @@ const TEAM_MEMBERS = [
     role: 'user'
   },
   { 
-    id: 3, 
+    id: 'aditya_user', 
     name: 'Aditya Sharma', 
     email: 'adityacollab1998@gmail.com', 
     avatar: '👨‍🎨', 
@@ -27,7 +27,7 @@ const TEAM_MEMBERS = [
     role: 'user'
   },
   { 
-    id: 4, 
+    id: 'kaiwalya_admin', 
     name: 'Kaiwalya Kulkarni', 
     email: 'kaiwalyacollab1993@gmail.com', 
     avatar: '👨‍🚀', 
@@ -36,179 +36,125 @@ const TEAM_MEMBERS = [
   }
 ];
 
-// Database simulation class
-class TaskDatabase {
+// API Service for MongoDB backend
+class ApiService {
   constructor() {
-    this.initializeDB();
+    this.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
   }
 
-  initializeDB() {
-    // Initialize empty database if not exists
-    if (!localStorage.getItem('taskTracker_database')) {
-      const initialDB = {
-        users: TEAM_MEMBERS.map(user => ({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          avatar: user.avatar,
-          role: user.role,
-          createdAt: new Date().toISOString()
-        })),
-        tasks: [],
-        nextTaskId: 1,
-        nextSubtaskId: 1
-      };
-      localStorage.setItem('taskTracker_database', JSON.stringify(initialDB));
-    }
-  }
+  // Helper method to make API calls
+  async makeRequest(endpoint, options = {}) {
+    try {
+      const response = await fetch(`${this.baseURL}${endpoint}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers
+        },
+        ...options
+      });
 
-  getDB() {
-    return JSON.parse(localStorage.getItem('taskTracker_database'));
-  }
-
-  saveDB(db) {
-    localStorage.setItem('taskTracker_database', JSON.stringify(db));
-  }
-
-  // Task CRUD operations
-  createTask(taskData) {
-    const db = this.getDB();
-    const task = {
-      ...taskData,
-      id: db.nextTaskId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      subtasks: []
-    };
-    db.tasks.push(task);
-    db.nextTaskId += 1;
-    this.saveDB(db);
-    return task;
-  }
-
-  getUserTasks(userId, isAdmin = false) {
-    const db = this.getDB();
-    if (isAdmin) {
-      return db.tasks; // Admins can see all tasks
-    }
-    return db.tasks.filter(task => 
-      task.createdBy === userId || task.assignedTo?.id === userId
-    );
-  }
-
-  getAllTasks() {
-    const db = this.getDB();
-    return db.tasks;
-  }
-
-  updateTask(taskId, updates) {
-    const db = this.getDB();
-    const taskIndex = db.tasks.findIndex(task => task.id === taskId);
-    if (taskIndex !== -1) {
-      db.tasks[taskIndex] = {
-        ...db.tasks[taskIndex],
-        ...updates,
-        updatedAt: new Date().toISOString()
-      };
-      this.saveDB(db);
-      return db.tasks[taskIndex];
-    }
-    return null;
-  }
-
-  deleteTask(taskId) {
-    const db = this.getDB();
-    db.tasks = db.tasks.filter(task => task.id !== taskId);
-    this.saveDB(db);
-  }
-
-  addSubtask(taskId, subtaskData) {
-    const db = this.getDB();
-    const taskIndex = db.tasks.findIndex(task => task.id === taskId);
-    if (taskIndex !== -1) {
-      const subtask = {
-        ...subtaskData,
-        id: db.nextSubtaskId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      db.tasks[taskIndex].subtasks.push(subtask);
-      db.tasks[taskIndex].updatedAt = new Date().toISOString();
-      db.nextSubtaskId += 1;
-      this.saveDB(db);
-      return subtask;
-    }
-    return null;
-  }
-
-  updateSubtask(taskId, subtaskId, updates) {
-    const db = this.getDB();
-    const taskIndex = db.tasks.findIndex(task => task.id === taskId);
-    if (taskIndex !== -1) {
-      const subtaskIndex = db.tasks[taskIndex].subtasks.findIndex(s => s.id === subtaskId);
-      if (subtaskIndex !== -1) {
-        db.tasks[taskIndex].subtasks[subtaskIndex] = {
-          ...db.tasks[taskIndex].subtasks[subtaskIndex],
-          ...updates,
-          updatedAt: new Date().toISOString()
-        };
-        db.tasks[taskIndex].updatedAt = new Date().toISOString();
-        this.saveDB(db);
-        return db.tasks[taskIndex].subtasks[subtaskIndex];
-      }
-    }
-    return null;
-  }
-
-  deleteSubtask(taskId, subtaskId) {
-    const db = this.getDB();
-    const taskIndex = db.tasks.findIndex(task => task.id === taskId);
-    if (taskIndex !== -1) {
-      db.tasks[taskIndex].subtasks = db.tasks[taskIndex].subtasks.filter(s => s.id !== subtaskId);
-      db.tasks[taskIndex].updatedAt = new Date().toISOString();
-      this.saveDB(db);
-    }
-  }
-
-  getTaskStats(userId = null, isAdmin = false) {
-    const tasks = userId && !isAdmin ? this.getUserTasks(userId) : this.getAllTasks();
-    return {
-      total: tasks.length,
-      todo: tasks.filter(t => t.status === 'todo').length,
-      inProgress: tasks.filter(t => t.status === 'in-progress').length,
-      review: tasks.filter(t => t.status === 'review').length,
-      done: tasks.filter(t => t.status === 'done').length,
-      byUser: isAdmin ? this.getTasksByUser() : null
-    };
-  }
-
-  getTasksByUser() {
-    const db = this.getDB();
-    const userStats = {};
-    
-    db.users.forEach(user => {
-      const userTasks = db.tasks.filter(task => task.createdBy === user.id);
-      const assignedTasks = db.tasks.filter(task => task.assignedTo?.id === user.id);
-      const userSubtasks = db.tasks.flatMap(t => t.subtasks || []).filter(s => s.assignedTo?.id === user.id);
+      const data = await response.json();
       
-      userStats[user.id] = {
-        ...user,
-        createdTasks: userTasks.length,
-        assignedTasks: assignedTasks.length,
-        subtasks: userSubtasks.length,
-        totalTasks: userTasks.length + assignedTasks.length
-      };
-    });
+      if (!response.ok) {
+        throw new Error(data.message || 'API request failed');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('API Error:', error);
+      throw error;
+    }
+  }
+
+  // Authentication
+  async login(email, password) {
+    // Find user in team members for demo
+    const user = TEAM_MEMBERS.find(member => 
+      member.email === email && member.password === password
+    );
     
-    return userStats;
+    if (!user) {
+      throw new Error('Invalid email or password');
+    }
+
+    // Simulate API login response
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        role: user.role
+      },
+      token: 'demo-token'
+    };
+  }
+
+  // Tasks
+  async getTasks(userId, isAdmin = false) {
+    return await this.makeRequest(`/tasks?userId=${userId}&isAdmin=${isAdmin}`);
+  }
+
+  async createTask(taskData) {
+    return await this.makeRequest('/tasks', {
+      method: 'POST',
+      body: JSON.stringify(taskData)
+    });
+  }
+
+  async updateTask(taskId, updates) {
+    return await this.makeRequest(`/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+  }
+
+  async deleteTask(taskId) {
+    return await this.makeRequest(`/tasks/${taskId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // Subtasks
+  async addSubtask(taskId, subtaskData) {
+    return await this.makeRequest(`/tasks/${taskId}/subtasks`, {
+      method: 'POST',
+      body: JSON.stringify(subtaskData)
+    });
+  }
+
+  async updateSubtask(taskId, subtaskId, updates) {
+    return await this.makeRequest(`/tasks/${taskId}/subtasks/${subtaskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+  }
+
+  async deleteSubtask(taskId, subtaskId) {
+    return await this.makeRequest(`/tasks/${taskId}/subtasks/${subtaskId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // Statistics
+  async getStats(userId, isAdmin = false) {
+    return await this.makeRequest(`/stats?userId=${userId}&isAdmin=${isAdmin}`);
   }
 }
 
 function App() {
-  const [db] = useState(new TaskDatabase());
+  const [api] = useState(new ApiService());
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [tasks, setTasks] = useState([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    todo: 0,
+    'in-progress': 0,
+    review: 0,
+    done: 0
+  });
   const [loading, setLoading] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [newTask, setNewTask] = useState({
@@ -238,50 +184,72 @@ function App() {
   useEffect(() => {
     const savedUser = localStorage.getItem('taskTracker_currentUser');
     if (savedUser) {
-      const user = JSON.parse(savedUser);
-      setCurrentUser(user);
-      loadUserTasks(user);
+      try {
+        const user = JSON.parse(savedUser);
+        setCurrentUser(user);
+        loadUserData(user);
+      } catch (error) {
+        console.error('Error parsing saved user:', error);
+        localStorage.removeItem('taskTracker_currentUser');
+      }
     }
-  }, [db]); // Added db as dependency
+  }, []);
 
-  // Load user tasks from database
-  const loadUserTasks = (user) => {
+  // Load user tasks and stats from MongoDB
+  const loadUserData = async (user) => {
     setLoading(true);
     try {
       const isAdmin = user.role === 'admin';
-      const userTasks = db.getUserTasks(user.id, isAdmin);
-      setTasks(userTasks);
+      
+      // Load tasks and stats in parallel
+      const [tasksResponse, statsResponse] = await Promise.all([
+        api.getTasks(user.id, isAdmin),
+        api.getStats(user.id, isAdmin)
+      ]);
+
+      setTasks(tasksResponse.tasks || []);
+      setStats({
+        total: statsResponse.totalTasks || 0,
+        todo: statsResponse.stats?.todo || 0,
+        'in-progress': statsResponse.stats?.['in-progress'] || 0,
+        review: statsResponse.stats?.review || 0,
+        done: statsResponse.stats?.done || 0,
+        byUser: statsResponse.byUser || null
+      });
     } catch (error) {
-      console.error('Error loading tasks:', error);
+      console.error('Error loading user data:', error);
       setTasks([]);
+      setStats({
+        total: 0,
+        todo: 0,
+        'in-progress': 0,
+        review: 0,
+        done: 0
+      });
     }
     setLoading(false);
   };
 
   // Handle login
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
+    setLoading(true);
     
-    const user = TEAM_MEMBERS.find(member => 
-      member.email === loginForm.email && member.password === loginForm.password
-    );
-    
-    if (user) {
-      const userSession = {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        role: user.role
-      };
+    try {
+      const response = await api.login(loginForm.email, loginForm.password);
       
-      setCurrentUser(userSession);
-      localStorage.setItem('taskTracker_currentUser', JSON.stringify(userSession));
-      loadUserTasks(userSession);
-      setLoginForm({ email: '', password: '', showPassword: false });
-    } else {
-      setLoginError('Invalid email or password');
+      if (response.success) {
+        const userSession = response.user;
+        setCurrentUser(userSession);
+        localStorage.setItem('taskTracker_currentUser', JSON.stringify(userSession));
+        await loadUserData(userSession);
+        setLoginForm({ email: '', password: '', showPassword: false });
+      }
+    } catch (error) {
+      setLoginError(error.message || 'Login failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -289,15 +257,23 @@ function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     setTasks([]);
+    setStats({
+      total: 0,
+      todo: 0,
+      'in-progress': 0,
+      review: 0,
+      done: 0
+    });
     localStorage.removeItem('taskTracker_currentUser');
     setActiveTab('dashboard');
   };
 
   // Handle task submission
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!newTask.title.trim()) return;
 
+    setLoading(true);
     try {
       const taskData = {
         title: newTask.title.trim(),
@@ -308,9 +284,8 @@ function App() {
         createdBy: currentUser.id
       };
       
-      const createdTask = db.createTask(taskData);
-      console.log('Task created:', createdTask); // Use the variable
-      loadUserTasks(currentUser); // Refresh tasks
+      await api.createTask(taskData);
+      await loadUserData(currentUser); // Refresh data
       
       setNewTask({ 
         title: '', 
@@ -321,16 +296,20 @@ function App() {
       });
     } catch (error) {
       console.error('Error creating task:', error);
+      alert('Failed to create task: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   // Handle edit task
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (!editingTask.title.trim()) return;
 
+    setLoading(true);
     try {
-      db.updateTask(editingTask.id, {
+      await api.updateTask(editingTask._id || editingTask.id, {
         title: editingTask.title.trim(),
         description: editingTask.description.trim(),
         priority: editingTask.priority,
@@ -338,10 +317,13 @@ function App() {
         assignedTo: editingTask.assignedTo
       });
       
-      loadUserTasks(currentUser); // Refresh tasks
+      await loadUserData(currentUser); // Refresh data
       setEditingTask(null);
     } catch (error) {
       console.error('Error updating task:', error);
+      alert('Failed to update task: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -349,9 +331,10 @@ function App() {
     setEditingTask({ ...task });
   };
 
-  const addSubtask = (taskId) => {
+  const addSubtask = async (taskId) => {
     if (!newSubtask.title.trim()) return;
 
+    setLoading(true);
     try {
       const subtaskData = {
         title: newSubtask.title.trim(),
@@ -360,53 +343,63 @@ function App() {
         createdBy: currentUser.id
       };
 
-      db.addSubtask(taskId, subtaskData);
-      loadUserTasks(currentUser); // Refresh tasks
+      await api.addSubtask(taskId, subtaskData);
+      await loadUserData(currentUser); // Refresh data
       
       setNewSubtask({ title: '', assignedTo: null, status: 'todo' });
       setShowSubtaskForm(null);
     } catch (error) {
       console.error('Error adding subtask:', error);
+      alert('Failed to add subtask: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const updateTaskStatus = (taskId, newStatus) => {
+  const updateTaskStatus = async (taskId, newStatus) => {
     try {
-      db.updateTask(taskId, { status: newStatus });
-      loadUserTasks(currentUser); // Refresh tasks
+      await api.updateTask(taskId, { status: newStatus });
+      await loadUserData(currentUser); // Refresh data
     } catch (error) {
       console.error('Error updating task status:', error);
+      alert('Failed to update task status: ' + error.message);
     }
   };
 
-  const updateSubtaskStatus = (taskId, subtaskId, newStatus) => {
+  const updateSubtaskStatus = async (taskId, subtaskId, newStatus) => {
     try {
-      db.updateSubtask(taskId, subtaskId, { status: newStatus });
-      loadUserTasks(currentUser); // Refresh tasks
+      await api.updateSubtask(taskId, subtaskId, { status: newStatus });
+      await loadUserData(currentUser); // Refresh data
     } catch (error) {
       console.error('Error updating subtask status:', error);
+      alert('Failed to update subtask status: ' + error.message);
     }
   };
 
-  const deleteTask = (taskId) => {
+  const deleteTask = async (taskId) => {
     if (!window.confirm('Are you sure you want to delete this task?')) return;
     
+    setLoading(true);
     try {
-      db.deleteTask(taskId);
-      loadUserTasks(currentUser); // Refresh tasks
+      await api.deleteTask(taskId);
+      await loadUserData(currentUser); // Refresh data
     } catch (error) {
       console.error('Error deleting task:', error);
+      alert('Failed to delete task: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const deleteSubtask = (taskId, subtaskId) => {
+  const deleteSubtask = async (taskId, subtaskId) => {
     if (!window.confirm('Are you sure you want to delete this subtask?')) return;
     
     try {
-      db.deleteSubtask(taskId, subtaskId);
-      loadUserTasks(currentUser); // Refresh tasks
+      await api.deleteSubtask(taskId, subtaskId);
+      await loadUserData(currentUser); // Refresh data
     } catch (error) {
       console.error('Error deleting subtask:', error);
+      alert('Failed to delete subtask: ' + error.message);
     }
   };
 
@@ -464,11 +457,11 @@ function App() {
             Kollab Task Tracker
           </h1>
           <p style={{ color: '#6b7280', fontSize: '14px', margin: '8px 0 0 0' }}>
-            Sign in with your team credentials
+            Now with MongoDB Database! 🚀
           </p>
         </div>
 
-        <div onSubmit={handleLogin}>
+        <form onSubmit={handleLogin}>
           <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
               Email Address
@@ -488,6 +481,7 @@ function App() {
               }}
               placeholder="Enter your email"
               required
+              disabled={loading}
             />
           </div>
 
@@ -511,6 +505,7 @@ function App() {
                 }}
                 placeholder="Enter your password"
                 required
+                disabled={loading}
               />
               <button
                 type="button"
@@ -525,6 +520,7 @@ function App() {
                   cursor: 'pointer',
                   fontSize: '16px'
                 }}
+                disabled={loading}
               >
                 {loginForm.showPassword ? '👁️' : '👁️‍🗨️'}
               </button>
@@ -546,21 +542,39 @@ function App() {
           )}
 
           <button
-            onClick={handleLogin}
+            type="submit"
+            disabled={loading}
             style={{
               width: '100%',
-              background: '#3b82f6',
+              background: loading ? '#9ca3af' : '#3b82f6',
               color: 'white',
               border: 'none',
               padding: '12px',
               borderRadius: '8px',
               fontSize: '16px',
               fontWeight: '600',
-              cursor: 'pointer'
+              cursor: loading ? 'not-allowed' : 'pointer'
             }}
           >
-            Sign In
+            {loading ? 'Signing In...' : 'Sign In'}
           </button>
+        </form>
+
+        {/* Demo credentials */}
+        <div style={{
+          marginTop: '20px',
+          padding: '12px',
+          background: '#f9fafb',
+          borderRadius: '6px',
+          border: '1px solid #e5e7eb'
+        }}>
+          <div style={{ fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
+            Demo Credentials:
+          </div>
+          <div style={{ fontSize: '11px', color: '#6b7280' }}>
+            <div>Admin: deepakcollab1999@gmail.com / Deep#1998</div>
+            <div>User: yashwantcollab@gmail.com / yashwantcollab1997</div>
+          </div>
         </div>
       </div>
     </div>
@@ -572,7 +586,6 @@ function App() {
   }
 
   const isAdmin = currentUser.role === 'admin';
-  const stats = db.getTaskStats(currentUser.id, isAdmin);
 
   const StatCard = ({ title, count, icon, color }) => (
     <div style={{
@@ -593,6 +606,24 @@ function App() {
 
   const renderDashboard = () => (
     <div>
+      {/* Connection Status */}
+      <div style={{
+        background: '#dcfce7',
+        color: '#166534',
+        padding: '12px 16px',
+        borderRadius: '8px',
+        marginBottom: '20px',
+        border: '1px solid #bbf7d0',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      }}>
+        <span style={{ fontSize: '1.2rem' }}>🗄️</span>
+        <span style={{ fontSize: '14px', fontWeight: '600' }}>
+          Connected to MongoDB Database
+        </span>
+      </div>
+
       {/* Task Statistics */}
       <div style={{ marginBottom: '32px' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#1f2937', marginBottom: '8px' }}>
@@ -606,51 +637,11 @@ function App() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
           <StatCard title="Total Tasks" count={stats.total} icon="📋" color="#1f2937" />
           <StatCard title="To Do" count={stats.todo} icon="📝" color="#475569" />
-          <StatCard title="In Progress" count={stats.inProgress} icon="⚡" color="#3730a3" />
+          <StatCard title="In Progress" count={stats['in-progress']} icon="⚡" color="#3730a3" />
           <StatCard title="In Review" count={stats.review} icon="👀" color="#7c3aed" />
           <StatCard title="Completed" count={stats.done} icon="✅" color="#166534" />
         </div>
       </div>
-
-      {/* Team Overview for Admins */}
-      {isAdmin && stats.byUser && (
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '24px',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-          border: '1px solid #e5e7eb',
-          marginBottom: '32px'
-        }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#1f2937', marginBottom: '16px' }}>
-            👥 Team Overview
-          </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
-            {Object.values(stats.byUser).map(user => (
-              <div key={user.id} style={{
-                padding: '16px',
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-                background: user.role === 'admin' ? '#fef3c7' : '#f9fafb'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '1.5rem' }}>{user.avatar}</span>
-                  <div>
-                    <div style={{ fontWeight: '600', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {user.name}
-                      {user.role === 'admin' && <span style={{ fontSize: '12px' }}>👑</span>}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#6b7280' }}>{user.email}</div>
-                  </div>
-                </div>
-                <div style={{ fontSize: '14px', color: '#374151' }}>
-                  Created: {user.createdTasks} • Assigned: {user.assignedTasks} • Subtasks: {user.subtasks}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Recent Tasks */}
       <div style={{
@@ -663,11 +654,15 @@ function App() {
         <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#1f2937', marginBottom: '16px' }}>
           📝 Recent Tasks
         </h2>
-        {tasks.slice(0, 5).map(task => {
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
+            Loading tasks from MongoDB...
+          </div>
+        ) : tasks.slice(0, 5).map(task => {
           const statusColors = getStatusColor(task.status);
           const creator = TEAM_MEMBERS.find(m => m.id === task.createdBy);
           return (
-            <div key={task.id} style={{
+            <div key={task._id || task.id} style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -695,7 +690,7 @@ function App() {
             </div>
           );
         })}
-        {tasks.length === 0 && (
+        {!loading && tasks.length === 0 && (
           <p style={{ color: '#6b7280', textAlign: 'center', margin: 0 }}>
             No tasks yet. Create your first task!
           </p>
@@ -741,7 +736,7 @@ function App() {
           )}
         </div>
 
-        <div>
+        <form onSubmit={handleFormSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
@@ -762,6 +757,8 @@ function App() {
                   boxSizing: 'border-box'
                 }}
                 placeholder="Enter task title"
+                required
+                disabled={loading}
               />
             </div>
 
@@ -783,6 +780,7 @@ function App() {
                   cursor: 'pointer',
                   boxSizing: 'border-box'
                 }}
+                disabled={loading}
               >
                 <option value="low">🟢 Low</option>
                 <option value="medium">🟡 Medium</option>
@@ -800,7 +798,7 @@ function App() {
               <select
                 value={formData.assignedTo?.id || ''}
                 onChange={(e) => {
-                  const member = TEAM_MEMBERS.find(m => m.id === parseInt(e.target.value));
+                  const member = TEAM_MEMBERS.find(m => m.id === e.target.value);
                   setFormData({ ...formData, assignedTo: member || null });
                 }}
                 style={{
@@ -814,6 +812,7 @@ function App() {
                   cursor: 'pointer',
                   boxSizing: 'border-box'
                 }}
+                disabled={loading}
               >
                 <option value="">Select team member</option>
                 {TEAM_MEMBERS.map(member => (
@@ -842,6 +841,7 @@ function App() {
                   cursor: 'pointer',
                   boxSizing: 'border-box'
                 }}
+                disabled={loading}
               >
                 <option value="todo">📋 To Do</option>
                 <option value="in-progress">⚡ In Progress</option>
@@ -871,25 +871,27 @@ function App() {
                 boxSizing: 'border-box'
               }}
               placeholder="Enter task description (optional)"
+              disabled={loading}
             />
           </div>
 
           <button
-            onClick={handleFormSubmit}
+            type="submit"
+            disabled={loading}
             style={{
-              background: '#3b82f6',
+              background: loading ? '#9ca3af' : '#3b82f6',
               color: 'white',
               border: 'none',
               padding: '10px 24px',
               borderRadius: '8px',
               fontSize: '14px',
               fontWeight: '600',
-              cursor: 'pointer'
+              cursor: loading ? 'not-allowed' : 'pointer'
             }}
           >
-            {isEdit ? '💾 Save Changes' : '✨ Create Task'}
+            {loading ? 'Saving...' : (isEdit ? '💾 Save Changes' : '✨ Create Task')}
           </button>
-        </div>
+        </form>
       </div>
     );
   };
@@ -914,14 +916,14 @@ function App() {
         </h2>
         {isAdmin && (
           <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0 0' }}>
-            Admin view: Tasks from all team members
+            Admin view: Tasks from all team members stored in MongoDB
           </p>
         )}
       </div>
 
       {loading ? (
         <div style={{ padding: '40px', textAlign: 'center' }}>
-          <p style={{ fontSize: '16px', margin: 0, color: '#6b7280' }}>Loading tasks...</p>
+          <p style={{ fontSize: '16px', margin: 0, color: '#6b7280' }}>Loading tasks from MongoDB...</p>
         </div>
       ) : tasks.length === 0 ? (
         <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -938,17 +940,18 @@ function App() {
           {editingTask && renderTaskForm(true, editingTask)}
           
           {tasks.map((task, index) => {
-            if (editingTask && task.id === editingTask.id) return null;
+            if (editingTask && (task._id === editingTask._id || task.id === editingTask.id)) return null;
             
             const priorityColors = getPriorityColor(task.priority);
             const statusColors = getStatusColor(task.status);
-            const isExpanded = expandedTasks.has(task.id);
+            const isExpanded = expandedTasks.has(task._id || task.id);
             const creator = TEAM_MEMBERS.find(m => m.id === task.createdBy);
             const canEdit = isAdmin || task.createdBy === currentUser.id;
+            const taskId = task._id || task.id;
 
             return (
               <div
-                key={task.id}
+                key={taskId}
                 style={{
                   padding: '20px 24px',
                   borderBottom: index < tasks.length - 1 ? '1px solid #f3f4f6' : 'none'
@@ -1029,7 +1032,7 @@ function App() {
 
                     {task.subtasks && task.subtasks.length > 0 && (
                       <button
-                        onClick={() => toggleTaskExpansion(task.id)}
+                        onClick={() => toggleTaskExpansion(taskId)}
                         style={{
                           background: 'none',
                           border: 'none',
@@ -1048,18 +1051,18 @@ function App() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                     <select
                       value={task.status}
-                      onChange={(e) => updateTaskStatus(task.id, e.target.value)}
-                      disabled={!canEdit}
+                      onChange={(e) => updateTaskStatus(taskId, e.target.value)}
+                      disabled={!canEdit || loading}
                       style={{
                         fontSize: '12px',
                         border: '1px solid #d1d5db',
                         borderRadius: '6px',
                         padding: '6px 8px',
                         outline: 'none',
-                        background: canEdit ? 'white' : '#f9fafb',
-                        cursor: canEdit ? 'pointer' : 'not-allowed',
+                        background: canEdit && !loading ? 'white' : '#f9fafb',
+                        cursor: canEdit && !loading ? 'pointer' : 'not-allowed',
                         minWidth: '100px',
-                        opacity: canEdit ? 1 : 0.6
+                        opacity: canEdit && !loading ? 1 : 0.6
                       }}
                     >
                       <option value="todo">To Do</option>
@@ -1072,44 +1075,47 @@ function App() {
                       <>
                         <button
                           onClick={() => startEditing(task)}
+                          disabled={loading}
                           style={{
-                            background: '#10b981',
+                            background: loading ? '#9ca3af' : '#10b981',
                             color: 'white',
                             border: 'none',
                             padding: '6px 12px',
                             borderRadius: '6px',
                             fontSize: '12px',
-                            cursor: 'pointer'
+                            cursor: loading ? 'not-allowed' : 'pointer'
                           }}
                         >
                           ✏️ Edit
                         </button>
 
                         <button
-                          onClick={() => setShowSubtaskForm(showSubtaskForm === task.id ? null : task.id)}
+                          onClick={() => setShowSubtaskForm(showSubtaskForm === taskId ? null : taskId)}
+                          disabled={loading}
                           style={{
-                            background: '#3b82f6',
+                            background: loading ? '#9ca3af' : '#3b82f6',
                             color: 'white',
                             border: 'none',
                             padding: '6px 12px',
                             borderRadius: '6px',
                             fontSize: '12px',
-                            cursor: 'pointer'
+                            cursor: loading ? 'not-allowed' : 'pointer'
                           }}
                         >
                           + Sub
                         </button>
 
                         <button
-                          onClick={() => deleteTask(task.id)}
+                          onClick={() => deleteTask(taskId)}
+                          disabled={loading}
                           style={{
-                            background: '#ef4444',
+                            background: loading ? '#9ca3af' : '#ef4444',
                             color: 'white',
                             border: 'none',
                             padding: '6px 12px',
                             borderRadius: '6px',
                             fontSize: '12px',
-                            cursor: 'pointer'
+                            cursor: loading ? 'not-allowed' : 'pointer'
                           }}
                         >
                           🗑️
@@ -1120,7 +1126,7 @@ function App() {
                 </div>
 
                 {/* Add Subtask Form */}
-                {showSubtaskForm === task.id && canEdit && (
+                {showSubtaskForm === taskId && canEdit && (
                   <div style={{
                     marginTop: '16px',
                     padding: '16px',
@@ -1135,6 +1141,7 @@ function App() {
                         value={newSubtask.title}
                         onChange={(e) => setNewSubtask({ ...newSubtask, title: e.target.value })}
                         placeholder="Subtask title"
+                        disabled={loading}
                         style={{
                           border: '1px solid #d1d5db',
                           borderRadius: '6px',
@@ -1146,9 +1153,10 @@ function App() {
                       <select
                         value={newSubtask.assignedTo?.id || ''}
                         onChange={(e) => {
-                          const member = TEAM_MEMBERS.find(m => m.id === parseInt(e.target.value));
+                          const member = TEAM_MEMBERS.find(m => m.id === e.target.value);
                           setNewSubtask({ ...newSubtask, assignedTo: member || null });
                         }}
+                        disabled={loading}
                         style={{
                           border: '1px solid #d1d5db',
                           borderRadius: '6px',
@@ -1166,31 +1174,31 @@ function App() {
                         ))}
                       </select>
                       <button
-                        onClick={() => addSubtask(task.id)}
-                        disabled={!newSubtask.title.trim()}
+                        onClick={() => addSubtask(taskId)}
+                        disabled={!newSubtask.title.trim() || loading}
                         style={{
-                          background: '#10b981',
+                          background: (!newSubtask.title.trim() || loading) ? '#9ca3af' : '#10b981',
                           color: 'white',
                           border: 'none',
                           padding: '6px 12px',
                           borderRadius: '6px',
                           fontSize: '14px',
-                          cursor: 'pointer',
-                          opacity: !newSubtask.title.trim() ? 0.5 : 1
+                          cursor: (!newSubtask.title.trim() || loading) ? 'not-allowed' : 'pointer'
                         }}
                       >
                         Add
                       </button>
                       <button
                         onClick={() => setShowSubtaskForm(null)}
+                        disabled={loading}
                         style={{
-                          background: '#6b7280',
+                          background: loading ? '#9ca3af' : '#6b7280',
                           color: 'white',
                           border: 'none',
                           padding: '6px 12px',
                           borderRadius: '6px',
                           fontSize: '14px',
-                          cursor: 'pointer'
+                          cursor: loading ? 'not-allowed' : 'pointer'
                         }}
                       >
                         Cancel
@@ -1213,7 +1221,7 @@ function App() {
                       
                       return (
                         <div
-                          key={subtask.id}
+                          key={subtask._id || subtask.id}
                           style={{
                             padding: '8px 12px',
                             margin: '6px 0',
@@ -1264,17 +1272,17 @@ function App() {
                           <div style={{ display: 'flex', gap: '6px' }}>
                             <select
                               value={subtask.status}
-                              onChange={(e) => updateSubtaskStatus(task.id, subtask.id, e.target.value)}
-                              disabled={!canEditSubtask}
+                              onChange={(e) => updateSubtaskStatus(taskId, subtask._id || subtask.id, e.target.value)}
+                              disabled={!canEditSubtask || loading}
                               style={{
                                 fontSize: '11px',
                                 border: '1px solid #d1d5db',
                                 borderRadius: '4px',
                                 padding: '2px 6px',
                                 outline: 'none',
-                                background: canEditSubtask ? 'white' : '#f9fafb',
-                                cursor: canEditSubtask ? 'pointer' : 'not-allowed',
-                                opacity: canEditSubtask ? 1 : 0.6
+                                background: canEditSubtask && !loading ? 'white' : '#f9fafb',
+                                cursor: canEditSubtask && !loading ? 'pointer' : 'not-allowed',
+                                opacity: canEditSubtask && !loading ? 1 : 0.6
                               }}
                             >
                               <option value="todo">To Do</option>
@@ -1284,15 +1292,16 @@ function App() {
                             </select>
                             {canEditSubtask && (
                               <button
-                                onClick={() => deleteSubtask(task.id, subtask.id)}
+                                onClick={() => deleteSubtask(taskId, subtask._id || subtask.id)}
+                                disabled={loading}
                                 style={{
-                                  background: '#ef4444',
+                                  background: loading ? '#9ca3af' : '#ef4444',
                                   color: 'white',
                                   border: 'none',
                                   padding: '2px 6px',
                                   borderRadius: '4px',
                                   fontSize: '11px',
-                                  cursor: 'pointer'
+                                  cursor: loading ? 'not-allowed' : 'pointer'
                                 }}
                               >
                                 ×
@@ -1331,6 +1340,16 @@ function App() {
               <h1 style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
                 Kollab Task Tracker
               </h1>
+              <span style={{
+                background: '#10b981',
+                color: 'white',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}>
+                MongoDB
+              </span>
             </div>
             
             {/* Navigation Tabs */}

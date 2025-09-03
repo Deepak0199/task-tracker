@@ -1,4 +1,10 @@
+// src/models/Task.js
 const mongoose = require('mongoose');
+
+// Clear any existing model in development
+if (mongoose.models.Task) {
+  delete mongoose.models.Task;
+}
 
 const taskSchema = new mongoose.Schema({
   title: {
@@ -8,7 +14,8 @@ const taskSchema = new mongoose.Schema({
   },
   description: {
     type: String,
-    trim: true
+    trim: true,
+    default: ''
   },
   status: {
     type: String,
@@ -20,92 +27,95 @@ const taskSchema = new mongoose.Schema({
     enum: ['low', 'medium', 'high', 'critical'],
     default: 'medium'
   },
-  assignedTo: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
   createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  teamId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Team',
-    required: true
-  },
-  organizationId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Organization',
-    required: true
-  },
-  dueDate: {
-    type: Date
-  },
-  estimatedHours: {
-    type: Number,
-    default: 0
-  },
-  actualHours: {
-    type: Number,
-    default: 0
-  },
-  tags: [{
     type: String,
-    trim: true
-  }],
-  attachments: [{
+    required: true
+  },
+  assignedTo: {
+    id: String,
     name: String,
-    url: String,
-    uploadedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    },
-    uploadedAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
-  comments: [{
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    },
-    message: {
+    email: String,
+    avatar: String
+  },
+  subtasks: [{
+    title: {
       type: String,
-      required: true
+      required: true,
+      trim: true
     },
+    status: {
+      type: String,
+      enum: ['todo', 'in-progress', 'review', 'done'],
+      default: 'todo'
+    },
+    assignedTo: {
+      id: String,
+      name: String,
+      email: String
+    },
+    createdBy: String,
     createdAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
-  history: [{
-    action: {
-      type: String,
-      required: true
-    },
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    },
-    previousValue: String,
-    newValue: String,
-    timestamp: {
       type: Date,
       default: Date.now
     }
   }]
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true }
 });
 
-// Indexes for better query performance
-taskSchema.index({ organizationId: 1, teamId: 1 });
-taskSchema.index({ assignedTo: 1, status: 1 });
-taskSchema.index({ createdBy: 1 });
-taskSchema.index({ dueDate: 1 });
-
 module.exports = mongoose.model('Task', taskSchema);
+
+//===========================================
+
+// src/models/User.js
+const mongoose = require('mongoose');
+
+// Clear any existing model in development
+if (mongoose.models.User) {
+  delete mongoose.models.User;
+}
+
+const userSchema = new mongoose.Schema({
+  username: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+    lowercase: true
+  },
+  password: {
+    type: String,
+    required: true
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  profile: {
+    firstName: String,
+    lastName: String,
+    avatar: String
+  }
+}, {
+  timestamps: true,
+  toJSON: {
+    transform: function(doc, ret) {
+      delete ret.password;
+      return ret;
+    }
+  }
+});
+
+module.exports = mongoose.model('User', userSchema);
