@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import apiService from './services/api';
 
 // Real team members data with provided credentials
 const TEAM_MEMBERS = [
@@ -36,115 +37,9 @@ const TEAM_MEMBERS = [
   }
 ];
 
-// API Service for MongoDB backend
-class ApiService {
-  constructor() {
-    this.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-  }
-
-  // Helper method to make API calls
-  async makeRequest(endpoint, options = {}) {
-    try {
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
-        },
-        ...options
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'API request failed');
-      }
-
-      return data;
-    } catch (error) {
-      console.error('API Error:', error);
-      throw error;
-    }
-  }
-
-  // Authentication
-  async login(email, password) {
-    // Find user in team members for demo
-    const user = TEAM_MEMBERS.find(member => 
-      member.email === email && member.password === password
-    );
-    
-    if (!user) {
-      throw new Error('Invalid email or password');
-    }
-
-    // Simulate API login response
-    return {
-      success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        role: user.role
-      },
-      token: 'demo-token'
-    };
-  }
-
-  // Tasks
-  async getTasks(userId, isAdmin = false) {
-    return await this.makeRequest(`/tasks?userId=${userId}&isAdmin=${isAdmin}`);
-  }
-
-  async createTask(taskData) {
-    return await this.makeRequest('/tasks', {
-      method: 'POST',
-      body: JSON.stringify(taskData)
-    });
-  }
-
-  async updateTask(taskId, updates) {
-    return await this.makeRequest(`/tasks/${taskId}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates)
-    });
-  }
-
-  async deleteTask(taskId) {
-    return await this.makeRequest(`/tasks/${taskId}`, {
-      method: 'DELETE'
-    });
-  }
-
-  // Subtasks
-  async addSubtask(taskId, subtaskData) {
-    return await this.makeRequest(`/tasks/${taskId}/subtasks`, {
-      method: 'POST',
-      body: JSON.stringify(subtaskData)
-    });
-  }
-
-  async updateSubtask(taskId, subtaskId, updates) {
-    return await this.makeRequest(`/tasks/${taskId}/subtasks/${subtaskId}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates)
-    });
-  }
-
-  async deleteSubtask(taskId, subtaskId) {
-    return await this.makeRequest(`/tasks/${taskId}/subtasks/${subtaskId}`, {
-      method: 'DELETE'
-    });
-  }
-
-  // Statistics
-  async getStats(userId, isAdmin = false) {
-    return await this.makeRequest(`/stats?userId=${userId}&isAdmin=${isAdmin}`);
-  }
-}
 
 function App() {
-  const [api] = useState(new ApiService());
+  // Use imported apiService for all API calls
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [tasks, setTasks] = useState([]);
@@ -203,8 +98,8 @@ function App() {
       
       // Load tasks and stats in parallel
       const [tasksResponse, statsResponse] = await Promise.all([
-        api.getTasks(user.id, isAdmin),
-        api.getStats(user.id, isAdmin)
+  apiService.getTasks(user.id, isAdmin),
+  apiService.getStats(user.id, isAdmin)
       ]);
 
       setTasks(tasksResponse.tasks || []);
@@ -218,27 +113,53 @@ function App() {
       });
     } catch (error) {
       console.error('Error loading user data:', error);
-      setTasks([]);
-      setStats({
-        total: 0,
-        todo: 0,
-        'in-progress': 0,
-        review: 0,
-        done: 0
-      });
+      setLoading(true);
+      try {
+        const isAdmin = user.role === 'admin';
+        // Load tasks and stats in parallel
+        const [tasksResponse, statsResponse] = await Promise.all([
+          apiService.getTasks(user.id, isAdmin),
+          apiService.getStats(user.id, isAdmin)
+        ]);
+
+        console.log('DEBUG: getTasks response:', tasksResponse);
+        console.log('DEBUG: getStats response:', statsResponse);
+
+        setTasks(tasksResponse.tasks || []);
+        setStats({
+          total: statsResponse.totalTasks || 0,
+          todo: statsResponse.stats?.todo || 0,
+          'in-progress': statsResponse.stats?.['in-progress'] || 0,
+          review: statsResponse.stats?.review || 0,
+          done: statsResponse.stats?.done || 0,
+          byUser: statsResponse.byUser || null
+        });
+      } catch (error) {
+        console.error('Error loading user data:', error);
+        setTasks([]);
+        setStats({
+          total: 0,
+          todo: 0,
+          'in-progress': 0,
+          review: 0,
+          done: 0
+        });
+      }
+      setLoading(false);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
+  // Handle logout
   // Handle login
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
     setLoading(true);
-    
+
     try {
-      const response = await api.login(loginForm.email, loginForm.password);
-      
+      const response = await apiService.login(loginForm.email, loginForm.password);
       if (response.success) {
         const userSession = response.user;
         setCurrentUser(userSession);
@@ -252,8 +173,6 @@ function App() {
       setLoading(false);
     }
   };
-
-  // Handle logout
   const handleLogout = () => {
     setCurrentUser(null);
     setTasks([]);
@@ -284,7 +203,7 @@ function App() {
         createdBy: currentUser.id
       };
       
-      await api.createTask(taskData);
+  await apiService.createTask(taskData);
       await loadUserData(currentUser); // Refresh data
       
       setNewTask({ 
@@ -309,7 +228,7 @@ function App() {
 
     setLoading(true);
     try {
-      await api.updateTask(editingTask._id || editingTask.id, {
+  await apiService.updateTask(editingTask._id || editingTask.id, {
         title: editingTask.title.trim(),
         description: editingTask.description.trim(),
         priority: editingTask.priority,
@@ -343,7 +262,7 @@ function App() {
         createdBy: currentUser.id
       };
 
-      await api.addSubtask(taskId, subtaskData);
+  await apiService.addSubtask(taskId, subtaskData);
       await loadUserData(currentUser); // Refresh data
       
       setNewSubtask({ title: '', assignedTo: null, status: 'todo' });
@@ -358,7 +277,7 @@ function App() {
 
   const updateTaskStatus = async (taskId, newStatus) => {
     try {
-      await api.updateTask(taskId, { status: newStatus });
+  await apiService.updateTask(taskId, { status: newStatus });
       await loadUserData(currentUser); // Refresh data
     } catch (error) {
       console.error('Error updating task status:', error);
@@ -368,7 +287,7 @@ function App() {
 
   const updateSubtaskStatus = async (taskId, subtaskId, newStatus) => {
     try {
-      await api.updateSubtask(taskId, subtaskId, { status: newStatus });
+  await apiService.updateSubtask(taskId, subtaskId, { status: newStatus });
       await loadUserData(currentUser); // Refresh data
     } catch (error) {
       console.error('Error updating subtask status:', error);
@@ -381,7 +300,7 @@ function App() {
     
     setLoading(true);
     try {
-      await api.deleteTask(taskId);
+  await apiService.deleteTask(taskId);
       await loadUserData(currentUser); // Refresh data
     } catch (error) {
       console.error('Error deleting task:', error);
@@ -395,7 +314,7 @@ function App() {
     if (!window.confirm('Are you sure you want to delete this subtask?')) return;
     
     try {
-      await api.deleteSubtask(taskId, subtaskId);
+  await apiService.deleteSubtask(taskId, subtaskId);
       await loadUserData(currentUser); // Refresh data
     } catch (error) {
       console.error('Error deleting subtask:', error);
@@ -899,9 +818,79 @@ function App() {
   const renderCreateTask = () => renderTaskForm(false);
 
   const renderTasks = () => (
-    <div style={{
-      background: 'white',
-      borderRadius: '12px',
+  {
+    console.log('DEBUG: tasks to render:', tasks);
+    return (
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+        border: '1px solid #e5e7eb',
+        overflow: 'hidden'
+      }}>
+        <div style={{
+          padding: '20px 24px',
+          borderBottom: '1px solid #e5e7eb',
+          background: '#f9fafb'
+        }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#1f2937', margin: 0 }}>
+            {isAdmin ? `All Tasks (${tasks.length})` : `My Tasks (${tasks.length})`}
+          </h2>
+          {isAdmin && (
+            <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0 0' }}>
+              Admin view: Tasks from all team members stored in MongoDB
+            </p>
+          )}
+        </div>
+        {loading ? (
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <p style={{ fontSize: '16px', margin: 0, color: '#6b7280' }}>Loading tasks from MongoDB...</p>
+          </div>
+        ) : tasks.length === 0 ? (
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📝</div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '8px', color: '#374151' }}>
+              No tasks yet
+            </h3>
+            <p style={{ margin: 0, color: '#6b7280' }}>
+              {isAdmin ? 'No tasks have been created by the team yet.' : 'Create your first task to get started!'}
+            </p>
+          </div>
+        ) : (
+          <div>
+            {editingTask && renderTaskForm(true, editingTask)}
+            {tasks.map((task, index) => {
+              if (editingTask && (task._id === editingTask._id || task.id === editingTask.id)) return null;
+              const priorityColors = getPriorityColor(task.priority);
+              const statusColors = getStatusColor(task.status);
+              const isExpanded = expandedTasks.has(task._id || task.id);
+              const creator = TEAM_MEMBERS.find(m => m.id === task.createdBy);
+              const canEdit = isAdmin || task.createdBy === currentUser.id;
+              const taskId = task._id || task.id;
+              return (
+                <div
+                  key={taskId}
+                  style={{
+                    padding: '20px 24px',
+                    borderBottom: index < tasks.length - 1 ? '1px solid #f3f4f6' : 'none'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+                    <div style={{ flex: 1 }}>
+                      {/* ...existing code for task details, subtasks, buttons, etc. ... */}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
       border: '1px solid #e5e7eb',
       overflow: 'hidden'
@@ -966,9 +955,12 @@ function App() {
                         color: '#1f2937',
                         margin: 0
                       }}>
-                        {task.title}
-                      </h3>
-                      <span style={{
+                    () => {
+                      console.log('DEBUG: tasks to render:', tasks);
+                      return (
+                        <div style={{
+                          background: 'white',
+                          borderRadius: '12px',
                         padding: '2px 8px',
                         borderRadius: '12px',
                         fontSize: '12px',

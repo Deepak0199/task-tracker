@@ -6,6 +6,17 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 
 const app = express();
+// Catch-all OPTIONS handler for CORS preflight
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 // MongoDB Connection
 const connectDB = async () => {
@@ -149,6 +160,10 @@ app.use(cors({
   ].filter(Boolean),
   credentials: true
 }));
+app.use((req, res, next) => {
+  console.log(`CORS preflight or request: ${req.method} ${req.headers.origin || 'no-origin-header'}`);
+  next();
+});
 
 // Security headers
 app.use(helmet({
@@ -200,6 +215,15 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
+// Handle CORS preflight for all /api/* routes
+app.options(/^\/api\/.*$/, (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
+
 app.get('/api', (req, res) => {
   res.json({ 
     message: 'Task Tracker API is running with MongoDB!',
@@ -335,8 +359,10 @@ app.get('/api/tasks/:id', async (req, res) => {
 app.post('/api/tasks', async (req, res) => {
   try {
     const taskData = req.body;
+    console.log('Incoming task creation request:', JSON.stringify(taskData, null, 2));
     
     if (!taskData.title || !taskData.createdBy) {
+      console.error('Missing required fields:', { title: taskData.title, createdBy: taskData.createdBy });
       return res.status(400).json({
         success: false,
         message: 'Title and createdBy are required'
@@ -346,7 +372,7 @@ app.post('/api/tasks', async (req, res) => {
     const task = new Task(taskData);
     await task.save();
 
-    console.log('Task created:', task.title);
+    console.log('Task created successfully:', task.title, 'by', task.createdBy);
     
     res.status(201).json({
       success: true,
@@ -355,11 +381,19 @@ app.post('/api/tasks', async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating task:', error);
-    res.status(400).json({
-      success: false,
-      message: 'Failed to create task',
-      error: error.message
-    });
+    if (error instanceof Error && error.message) {
+      res.status(400).json({
+        success: false,
+        message: 'Failed to create task',
+        error: error.message
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Failed to create task',
+        error: error
+      });
+    }
   }
 });
 
