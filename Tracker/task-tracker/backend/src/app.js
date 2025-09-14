@@ -25,8 +25,6 @@ const connectDB = async () => {
       'mongodb+srv://dksingh0199_db_user:Vjg2a8LzMUGUwxqs@datadb.tikfqms.mongodb.net/';
 
     await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
     });
 
     console.log('MongoDB Connected: ' + mongoose.connection.host);
@@ -155,12 +153,16 @@ app.set('trust proxy', 1);
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    /\.app\.github\.dev$/,
-    process.env.CLIENT_URL
-  ].filter(Boolean),
+    'https://ubiquitous-doodle-g475w79p99zvjpx-3000.app.github.dev'
+  ],
   credentials: true
 }));
+// Custom CORS handler to allow requests with or without Origin header for all routes
 app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   console.log(`CORS preflight or request: ${req.method} ${req.headers.origin || 'no-origin-header'}`);
   next();
 });
@@ -216,10 +218,11 @@ app.get('/health', (req, res) => {
 
 // API routes
 // Handle CORS preflight for all /api/* routes
-app.options(/^\/api\/.*$/, (req, res) => {
+// Handle CORS preflight for all routes
+app.options('*', (req, res) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.sendStatus(200);
 });

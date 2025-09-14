@@ -1,7 +1,7 @@
 // frontend/src/services/api.js
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = 'https://stunning-broccoli-7vp5t4pqxgrcr2wj-5000.app.github.dev/api';
 
 // Create axios instance
 const api = axios.create({
